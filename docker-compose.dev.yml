@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:16
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_PASSWORD: ${POLICR_MINI_DATABASE_PASSWORD:-dev-postgres-password}
+
+  tsdb:
+    image: influxdb:2.7
+    ports:
+      - 8086:8086
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: demo
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${POLICR_MINI_INFLUX_PASSWORD:-dev-influx-password}
+      DOCKER_INFLUXDB_INIT_ORG: policr_mini
+      DOCKER_INFLUXDB_INIT_BUCKET: policr_mini_dev
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${POLICR_MINI_INFLUX_TOKEN:-dev-influx-token}
+
+  bot-api:
+    image: gramoss/telegram-bot-api:9.1
+    ports:
+      - 8081:80
+    environment:
+      TELEGRAM_API_ID: $TELEGRAM_API_ID
+      TELEGRAM_API_HASH: $TELEGRAM_API_HASH
+      TELEGRAM_LOCAL_MODE: true
+
+  capinde:
+    image: ${POLICR_MINI_CAPINDE_IMAGE:-hentioe/capinde:0.1.1}
+    ports:
+      - 8080:8080
+    environment:
+      CAPINDE_HOST: 0.0.0.0
+      CAPINDE_WORKING_MODE: localized
+    volumes:
+      - ./shared_assets:/home/capinde/namespace/out
+      - ./albums:/home/capinde/albums
+
+  pgadmin:
+    image: dpage/pgadmin4:9
+    ports:
+      - 5050:80
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@local.dev
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-dev-admin-password}
+    depends_on:
+      - db

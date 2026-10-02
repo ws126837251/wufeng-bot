@@ -1,0 +1,80 @@
+# The directory Mix will write compiled artifacts to.
+/_build/
+
+# If you run "mix test --cover", coverage assets end up here.
+/cover/
+
+# The directory Mix downloads your dependencies sources to.
+/deps/
+
+# Where 3rd-party dependencies like ExDoc output generated docs.
+/doc/
+
+# Ignore .fetch files in case you like to edit your project deps locally.
+/.fetch
+
+# If the VM crashes, it generates a dump, let's ignore it too.
+erl_crash.dump
+
+# Also ignore archive artifacts (built via "mix archive.build").
+*.ez
+
+# Ignore package tarball (built via "mix hex.build").
+policr_mini-*.tar
+
+# In case you use Node.js/npm, you want to ignore these.
+npm-debug.log
+
+# The directory NPM downloads your dependencies sources to.
+/assets/node_modules/
+/webapps/node_modules/
+/webapps/dist/
+
+# Ignore assets that are produced by build tools.
+/priv/static/
+
+# Ignore digested assets cache.
+/priv/static/cache_manifest.json
+
+# Secret configuration files.
+/config/*.secret.exs
+
+# Mnesia dir.
+/Mnesia.*/
+
+# Rersistent assets.
+/_assets/
+
+# Ignore dev-env secret config.
+/dev.env
+
+# Ignore native libraries.
+/priv/native/
+
+# Ignore tests output assets.
+/test/assets/output/
+
+# Ignore direnv
+/.direnv
+
+# Ignore shared assets
+/shared_assets/
+
+# Ignore albums directory
+/albums/
+
+# Production secrets and runtime data
+/.env
+/.env.*
+!/.env.example
+!/*.env.example
+/_data/
+/_member_sync/
+/dumps/
+
+# Local workspace notes and Telegram session material
+/README-WORKSPACE.md
+/.envrc
+/.vscode/
+*.session
+*.session-journal

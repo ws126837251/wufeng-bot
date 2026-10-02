@@ -1,0 +1,120 @@
+@import "./tailwind.css";
+@import "./styles/components.css";
+
+body {
+  margin: 0;
+  background: #f5f7f4;
+  color: #18231f;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: rgba(59, 130, 246, 0.1);
+    border-radius: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba(59, 130, 246, 0.4);
+    border-radius: 4px;
+    transition: background 0.3s ease;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: rgba(59, 130, 246, 0.6);
+  }
+}
+
+.panel-card {
+  @apply rounded-2xl border border-emerald-950/8 bg-white shadow-sm;
+}
+
+.panel-card-header {
+  @apply flex items-start justify-between gap-4 border-b border-emerald-950/8 px-5 py-4;
+}
+
+.panel-section-title {
+  @apply flex items-center gap-2 text-base font-semibold text-ink;
+}
+
+.panel-input {
+  @apply min-h-[2.75rem] w-full rounded-xl border border-emerald-950/12 bg-white px-3 py-2 text-[0.95rem] outline-none transition focus:border-tea-500 focus:ring-2 focus:ring-tea-100;
+}
+
+.panel-muted {
+  @apply text-sm leading-6 text-emerald-950/55;
+}
+
+.panel-page-title {
+  @apply text-2xl font-bold tracking-tight text-ink;
+}
+
+#drawer {
+  @apply fixed top-0 bottom-0 w-drawer bg-zinc-50 transition-all;
+  z-index: 1000;
+
+  &.open {
+    @apply left-0;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.2);
+  }
+
+  &.close {
+    @apply left-drawer-neg;
+  }
+}
+
+#overlay {
+  &.close {
+    @apply opacity-0 backdrop-blur-none;
+    z-index: -1;
+  }
+
+  &.open {
+    @apply opacity-100 backdrop-blur-sm;
+    z-index: 999;
+  }
+}
+
+.input-edge {
+  @apply tw-input-edge focus:tw-input-edge-highlight;
+}
+
+.scrollbar {
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: rgba(59, 130, 246, 0.1);
+    border-radius: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba(59, 130, 246, 0.4);
+    border-radius: 4px;
+    transition: background 0.3s ease;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: rgba(59, 130, 246, 0.6);
+  }
+}
+
+.user-bg {
+  background: linear-gradient(-45deg, #ff0000, #ff4d4d, #ff9900, #ffff00);
+  background-size: 400% 400%;
+  animation: gradient 10s ease-in-out infinite;
+}
+@keyframes gradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}

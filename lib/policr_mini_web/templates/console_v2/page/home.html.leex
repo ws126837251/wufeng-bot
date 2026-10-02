@@ -1,0 +1,13 @@
+<%= if PolicrMini.Plausible.integrated() do %>
+  <!-- Plausible -->
+  <script defer data-domain="<%= PolicrMini.Plausible.domain() %>" src="<%= PolicrMini.Plausible.script_src() %>"></script>
+<% end %>
+<div id="app"></div>
+<link
+  rel="stylesheet"
+  href="<%= Routes.static_path(@conn, ~s{/assets/console_v2.css}) %>"
+/>
+<script
+  type="text/javascript"
+  src="<%= Routes.static_path(@conn, ~s{/assets/console_v2.js}) %>"
+></script>

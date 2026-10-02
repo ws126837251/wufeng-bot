@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+@theme {
+  --color-foreground: #18231f;
+  --color-zinc-150: oklch(0.944 0.003 286.348);
+  --color-tea-50: #f1f7f3;
+  --color-tea-100: #dfeee6;
+  --color-tea-500: #3f7d68;
+  --color-tea-600: #326653;
+  --color-ink: #18231f;
+  --color-blue-150: oklch(0.907 0.046 254.857);
+  --color-yellow-150: oklch(0.959 0.1 102.367);
+  --color-red-150: oklch(0.911 0.047 18.026);
+  --color-green-150: oklch(0.944 0.064 156.369);
+  --spacing-edge: 1rem;
+  --spacing-edge-neg: calc(var(--spacing-edge) * -1);
+  --spacing-drawer: 18rem;
+  --spacing-drawer-neg: calc(var(--spacing-drawer) * -1);
+  --spacing-user-prompt: calc(var(--spacing-drawer) - 4rem);
+  --spacing-header: 4.25rem;
+  --spacing-navigation: 4rem;
+  --spacing-main-top: calc(var(--spacing-header) + var(--spacing-edge));
+  --spacing-main-bottom: calc(var(--spacing-navigation) + var(--spacing-edge));
+  --spacing-button-lg: 2.5rem;
+}
+
+@utility tw-input-edge {
+  outline-style: solid;
+  outline-width: 2px;
+  outline-color: theme(--color-zinc-100/40);
+  border-radius: theme(--radius-lg);
+}
+
+@utility tw-input-edge-highlight {
+  outline-color: theme(--color-blue-400);
+}

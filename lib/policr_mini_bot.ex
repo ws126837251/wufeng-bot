@@ -1,0 +1,147 @@
+defmodule PolicrMiniBot do
+  @moduledoc false
+
+  alias :ets, as: ETS
+  alias __MODULE__.BootHelper
+  alias PolicrMini.PrivateRelays
+
+  require Logger
+
+  # 注意：当前并未依赖对编辑消息、频道消息、内联查询等更新类型的接收才能实现的功能，如有需要需提前更新此列表。
+  @allowed_updates [
+    "message",
+    "callback_query",
+    "my_chat_member",
+    "chat_member",
+    "chat_join_request"
+  ]
+
+  def allowed_updates, do: @allowed_updates
+
+  defmodule Info do
+    @moduledoc false
+
+    def from(bot_info: bot_info) when is_struct(bot_info, __MODULE__) do
+      bot_info
+    end
+
+    use TypedStruct
+
+    typedstruct do
+      field :id, integer
+      field :username, String.t()
+      field :name, String.t()
+      field :photo_file_id, String.t()
+      field :is_third_party, boolean
+    end
+  end
+
+  defmodule Chain do
+    @moduledoc false
+
+    defmacro __using__(opts) do
+      quote do
+        use Telegex.Chain, unquote(opts)
+        use PolicrMini.I18n
+        use PolicrMiniBot.MessageCaller
+
+        import PolicrMiniBot.ChainContext
+        import PolicrMiniBot.Helper
+
+        alias PolicrMiniBot.ChainContext
+      end
+    end
+  end
+
+  @doc """
+  初始化机器人。
+
+  包括获取机器人必要信息、缓存机器人数据、生成命令列表等操作。通常在机器人启动时调用。
+  """
+  @spec init :: Info.t()
+  def init do
+    if ETS.whereis(Info) == :undefined do
+      # 获取机器人必要信息。
+      Logger.info("Checking bot information...")
+      %{username: username} = bot_info = BootHelper.fetch_bot_info()
+
+      # 使用 Ets 缓存机器人数据。
+      ETS.new(Info, [:set, :named_table])
+      ETS.insert(Info, {:bot_info, bot_info})
+
+      # WuFengBot 使用固定的私聊/群聊命令菜单，启动时始终同步，避免 BotFather 中残留旧命令。
+      BootHelper.gen_commands(username)
+
+      # 默认启用公开联系管理员入口；管理员主动关闭后，数据库中的 closed 状态会保留。
+      PrivateRelays.ensure_public_gateway(config_get(:owner_id))
+
+      bot_info
+    else
+      Info.from(ETS.lookup(Info, :bot_info))
+    end
+  end
+
+  @doc """
+  获取机器人的 ID。
+  """
+  @spec id :: integer | nil
+  def id, do: find_bot_field(:id)
+
+  @doc """
+  获取机器人的用户名。
+  """
+  @spec username :: String.t() | nil
+  def username, do: find_bot_field(:username)
+
+  @doc """
+  获取机器人的名称。
+  """
+  @spec name :: String.t() | nil
+  def name, do: find_bot_field(:name)
+
+  @doc """
+  获取机器人的头像文件 ID。
+  """
+  @spec photo_file_id :: String.t() | nil
+  def photo_file_id, do: find_bot_field(:photo_file_id)
+
+  @typep bot_info_field :: :id | :username | :name | :photo_file_id
+
+  @spec find_bot_field(bot_info_field) :: any
+  defp find_bot_field(field) do
+    if bot_info = info() do
+      Map.get(bot_info, field)
+    else
+      nil
+    end
+  end
+
+  @spec info :: Info.t() | nil
+  def info() do
+    case ETS.lookup(Info, :bot_info) do
+      [{:bot_info, value}] ->
+        value
+
+      _ ->
+        nil
+    end
+  end
+
+  @official_bots ["policr_mini_bot", "policr_mini_dev_bot", "policr_mini_pre_bot"]
+
+  def official_bots, do: @official_bots
+
+  @type config_key ::
+          :work_mode
+          | :auto_gen_commands
+          | :mosaic_method
+          | :owner_id
+          | :name
+          | :unban_method
+          | :opts
+
+  @spec config_get(config_key, any) :: any
+  def config_get(key, default \\ nil) do
+    Application.get_env(:policr_mini, __MODULE__)[key] || default
+  end
+end

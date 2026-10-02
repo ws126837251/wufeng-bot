@@ -1,0 +1,361 @@
+defmodule PolicrMiniBot.CallAnswerChain do
+  @moduledoc """
+  回调验证答案按钮。
+  """
+
+  use PolicrMiniBot.Chain, {:callback_query, prefix: "ans:"}
+
+  alias PolicrMini.{Chats, Stats, Counter}
+  alias PolicrMini.Automation.Lottery
+  alias PolicrMini.Automation.MessageTemplates
+  alias PolicrMini.Chats.{Verification, Scheme, Operation}
+  alias PolicrMiniBot.{Disposable, Worker, JoinReuquestHosting}
+  alias Telegex.Type.User, as: TgUser
+  alias Telegex.Type.CallbackQuery
+
+  import PolicrMiniBot.VerificationHelper
+
+  require Logger
+
+  @impl true
+  def handle(%{data: data} = callback_query, context) do
+    %{
+      id: callback_query_id,
+      message: %{message_id: message_id, chat: %{id: chat_id}}
+    } = callback_query
+
+    processing_key = "#{chat_id}_#{message_id}"
+
+    case Disposable.processing(processing_key) do
+      :ok ->
+        data
+        |> parse_callback_data()
+        |> handle_data(callback_query, context)
+
+        Disposable.done(processing_key)
+
+        {:stop, context}
+
+      {:repeat, :processing} ->
+        Telegex.answer_callback_query(callback_query_id,
+          text: commands_text("有请求正在处理中…"),
+          show_alert: true
+        )
+
+        {:stop, context}
+
+      {:repeat, :done} ->
+        Telegex.answer_callback_query(callback_query_id,
+          text: commands_text("此任务已被处理过了～"),
+          show_alert: true
+        )
+
+        {:stop, context}
+    end
+  end
+
+  @doc """
+  处理 v1 版本的验证。
+
+  此版本的数据参数格式为「被选择答案索引:验证编号」。
+  TODO: 应该根据验证记录中的入口动态决定的 chat_id（当前因为默认私聊的关系直接使用了 user_id）。
+  """
+  @spec handle_data({String.t(), [String.t(), ...]}, CallbackQuery.t(), map) :: {:stop, map}
+  def handle_data({"v1", [chosen, vid]}, callback_query, context) do
+    %{
+      id: callback_query_id,
+      from: %{id: user_id}
+    } = callback_query
+
+    chosen = String.to_integer(chosen)
+    vid = String.to_integer(vid)
+
+    # 1. 检查验证有效性
+    # 2. 更新选择数据
+    # 3. 获取群组方案
+    # 4. 处理回答
+    with {:ok, v} <- validity_check(user_id, vid),
+         {:ok, v} <- Chats.update_verification(v, %{chosen: chosen}),
+         {:ok, scheme} <- Chats.find_or_init_scheme(v.chat_id),
+         {:ok, v} <- handle_answer(v, scheme, callback_query) do
+      if v.status == :passed do
+        _ = Lottery.complete_referrals(v.chat_id, v.target_user_id)
+        async_success_notify(v, callback_query.from, scheme)
+      else
+        # 验证处理结束，更新或删除入口消息
+        put_or_delete_entry_message(v.chat_id, scheme)
+      end
+
+      {:stop, context}
+    else
+      {:error, %Ecto.Changeset{} = changeset} ->
+        Logger.error("Processing of verification answer failed: #{inspect(reason: changeset)}")
+
+        answer_callback_query(callback_query_id,
+          text: commands_text("答案校验失败，请管理员并通知开发者。"),
+          show_alert: true
+        )
+
+        {:stop, context}
+
+      {:error, :known, message} ->
+        answer_callback_query(callback_query_id, text: message, show_alert: true)
+
+        {:stop, context}
+
+      {:error, reason} ->
+        answer_callback_query(callback_query_id,
+          text: commands_text("发生了一些未预料的情况，请向开发者反馈。"),
+          show_alert: true
+        )
+
+        Logger.error("Processing of verification answer failed: #{inspect(reason: reason)}")
+
+        {:stop, context}
+    end
+  end
+
+  @doc """
+  处理答案。
+  """
+  @spec handle_answer(Verification.t(), Scheme.t(), CallbackQuery.t()) ::
+          {:ok, Verification.t()} | {:error, any}
+  def handle_answer(v, scheme, callback_query) do
+    %{
+      from: from,
+      message: %{message_id: message_id}
+    } = callback_query
+
+    # 取消超时任务
+    Worker.cancel_terminate_validation_job(
+      v.chat_id,
+      v.target_user_id
+    )
+
+    if Enum.member?(v.indices, v.chosen) do
+      # 处理回答正确
+      handle_correct_answer(v, message_id, from)
+    else
+      # 处理回答错误
+      handle_wrong_answer(v, scheme, message_id)
+    end
+  end
+
+  @doc """
+  处理回答正确。
+  """
+  @spec handle_correct_answer(Verification.t(), integer, TgUser.t()) ::
+          {:ok, Verification.t()} | {:error, any()}
+  def handle_correct_answer(v, message_id, _from_user) do
+    # 计数器自增（通过的总数）
+    Counter.increment(:verification_passed_total)
+
+    case Chats.update_verification(v, %{status: :passed}) do
+      {:ok, v} = ok_r ->
+        # 写入验证数据点（通过）
+        Stats.write(v)
+
+        # 通过用户
+        pass_user(v)
+
+        # 更新验证消息为验证结果
+        async_update_result(v, message_id)
+
+        ok_r
+
+      e ->
+        e
+    end
+  end
+
+  # 根据不同来源，通过验证用户
+  @spec pass_user(Verification.t()) :: :ok
+  defp pass_user(%{source: :joined} = v) do
+    async_run(fn -> derestrict_chat_member(v.chat_id, v.target_user_id) end)
+
+    :ok
+  end
+
+  defp pass_user(%{source: :join_request} = v) do
+    # 更新托管的请求中的状态
+    :ok = JoinReuquestHosting.update_status(v.chat_id, v.target_user_id, :approved)
+
+    async_run(fn -> Telegex.approve_chat_join_request(v.chat_id, v.target_user_id) end)
+
+    :ok
+  end
+
+  @spec async_update_result(Verification.t(), integer) :: :ok
+  defp async_update_result(v, message_id) do
+    async do
+      delete_private_verification_then_notify(v, message_id)
+    end
+
+    :ok
+  end
+
+  defp delete_private_verification_then_notify(v, verification_message_id) do
+    case Telegex.delete_message(v.target_user_id, verification_message_id) do
+      {:ok, true} ->
+        send_text(v.target_user_id, verification_success_text(v), logging: true)
+
+      {:error, %{description: description}}
+      when description in [
+             "Bad Request: message to delete not found",
+             "Bad Request: message can't be deleted"
+           ] ->
+        # 私聊验证消息可能已被其他清理任务删除，此时仍继续发送结果。
+        send_text(v.target_user_id, verification_success_text(v), logging: true)
+
+      {:error, reason} ->
+        Logger.error("Delete private verification message failed: #{inspect(reason)}",
+          user_id: v.target_user_id,
+          message_id: verification_message_id
+        )
+    end
+  end
+
+  @spec async_success_notify(Verification.t(), TgUser.t(), Scheme.t()) :: :ok
+  defp async_success_notify(v, user, scheme) do
+    text = verification_success_text(v)
+
+    async do
+      case send_text(v.chat_id, text, parse_mode: "MarkdownV2") do
+        {:ok, %{message_id: message_id}} ->
+          # 先更新或删除群内验证入口，再发送欢迎语。
+          put_or_delete_entry_message(v.chat_id, scheme)
+
+          if v.source == :joined do
+            PolicrMini.Automation.send_welcome(v.chat_id, user)
+          end
+
+          # 延迟 8 秒删除通知消息
+          async_delete_message_after(v.chat_id, message_id, 8)
+
+        {:error, reason} ->
+          Logger.error("Send notification failed: #{inspect(reason: reason)}",
+            chat_id: v.chat_id
+          )
+      end
+    end
+
+    :ok
+  end
+
+  defp verification_success_text(v) do
+    MessageTemplates.render(v.chat_id, :verification_success)
+  end
+
+  @doc """
+  处理错误回答。
+  """
+  @spec handle_wrong_answer(Verification.t(), Scheme.t(), integer) ::
+          {:ok, Verification.t()} | {:error, any}
+  def handle_wrong_answer(v, scheme, message_id) do
+    # 获取方案中的配置项
+    wkmethod = scheme.wrong_killing_method || default!(:wkmethod)
+
+    case Chats.update_verification(v, %{status: :wronged}) do
+      {:ok, v} ->
+        # 写入验证数据点（错误）
+        Stats.write(v)
+
+        # 添加操作记录
+        add_operation(wkmethod, v)
+
+        # 清理消息并私聊验证结果。
+        async_clean_with_notify(message_id, v, wkmethod)
+
+        # 击杀用户
+        kill(v, scheme, :wronged)
+
+        {:ok, v}
+
+      e ->
+        e
+    end
+  end
+
+  @spec add_operation(atom, Verification.t()) :: {:ok, Operation.t()} | {:error, any}
+  defp add_operation(kmethod, v) do
+    action = if kmethod == :ban, do: :ban, else: :kick
+
+    params = %{
+      chat_id: v.chat_id,
+      verification_id: v.id,
+      action: action,
+      role: :system
+    }
+
+    case Chats.create_operation(params) do
+      {:ok, _} = ok_r ->
+        ok_r
+
+      {:error, reason} = e ->
+        Logger.error("Create operation failed: #{inspect(reason: reason)}")
+
+        e
+    end
+  end
+
+  @spec async_clean_with_notify(integer, Verification.t(), atom) :: no_return
+  defp async_clean_with_notify(message_id, %{source: :joined} = v, kmethod) do
+    key = if kmethod == :ban, do: :verification_failed_banned, else: :verification_failed_removed
+    text = failure_text(v, key)
+
+    async do
+      async_delete_message(v.target_user_id, message_id)
+
+      send_text(v.target_user_id, text, parse_mode: "MarkdownV2", logging: true)
+    end
+  end
+
+  defp async_clean_with_notify(message_id, %{source: :join_request} = v, kmethod) do
+    key =
+      if kmethod == :ban,
+        do: :join_request_failed_banned,
+        else: :join_request_failed_rejected
+
+    text = failure_text(v, key)
+
+    async do
+      async_delete_message(v.target_user_id, message_id)
+
+      send_text(v.target_user_id, text, parse_mode: "MarkdownV2", logging: true)
+    end
+  end
+
+  defp failure_text(v, key) do
+    MessageTemplates.render(
+      v.chat_id,
+      key,
+      %{chat_title: "*#{escape_markdown(v.chat.title)}*"},
+      parse_mode: "MarkdownV2"
+    )
+  end
+
+  @doc """
+  检查验证数据是否有效。
+  """
+  @spec validity_check(integer(), integer()) :: {:ok, Verification.t()} | {:error, String.t()}
+  def validity_check(user_id, verification_id) do
+    # 1. 验证是否存在
+    # 2. 验证是否是目标用户
+    # 3. 验证是否未完成
+    with {:ok, verification} <- Verification.get(verification_id, preload: [:chat]),
+         {:check_user, true} <- {:check_user, verification.target_user_id == user_id},
+         {:check_status, true} <- {:check_status, verification.status == :waiting} do
+      # 返回验证记录
+      {:ok, verification}
+    else
+      {:error, :not_found, _} ->
+        {:error, :known, commands_text("没有找到和这条验证有关的记录～")}
+
+      {:check_user, false} ->
+        {:error, :known, commands_text("此条验证并不针对你～")}
+
+      {:check_status, false} ->
+        {:error, :known, commands_text("这条验证可能已经失效了～")}
+    end
+  end
+end

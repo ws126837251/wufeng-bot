@@ -1,0 +1,7 @@
+/_build/
+/deps/
+/admin/node_modules/
+/console/node_modules/
+/priv/static/
+/rust-toolchain
+/.mise.toml
