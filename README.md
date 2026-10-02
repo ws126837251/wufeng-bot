@@ -5,41 +5,43 @@
 [![Build](https://github.com/ws126837251/wufeng-bot/actions/workflows/publish.yml/badge.svg?branch=main)](https://github.com/ws126837251/wufeng-bot/actions/workflows/publish.yml)
 [![License](https://img.shields.io/github/license/ws126837251/wufeng-bot)](LICENSE)
 
-WuFengBot 是一个基于 PolicrMini 二次开发的 Telegram 群组管理机器人，支持多群独立配置、入群验证、自动回复、抽奖、私聊中转和商品通知等功能。
+WuFengBot 是一个面向 Telegram 群组运营的群组管理机器人，支持多个群组分别保存配置，并通过管理后台切换当前控制的群组。
 
-![截图](design/admin-console-screenshots.webp)
+## 功能
 
-## 介绍
+- **多群组独立管理**：每个群组单独保存验证、权限、自动化和抽奖设置。
+- **入群验证与成员管理**：支持入群验证、审核、权限管理、黑名单和成员同步。
+- **消息自动化**：欢迎语、关键词回复、定时消息、违规词拦截和机器人消息清理。
+- **抽奖中心**：创建抽奖、关键词报名、开奖、中奖记录，以及可选的邀请助力机制。
+- **私聊中转**：用户验证后，可将文字、图片和文件转发给客服，并支持继续转发或停止转发。
+- **商品通知**：接收网站商品上架通知，发送图片、文案和 Telegram 操作按钮。
+- **管理界面**：提供 Web 管理后台和 Telegram Mini App 控制台。
 
-本项目主要功能包括：
+## 项目结构
 
-- 提供自定义验证（定制验证）和其它各种验证类型
-- 支持公开群、私有群、管理员全匿名群
-- 兼容已启用/未启用 Approve new members（审核新成员）等多种模式
-- 为机器人拥有者（运营者）设计的全功能 web 后台
-- 为管理员（用户）设计的 Mini Apps 控制台
+- `lib/`：Elixir/Phoenix 后端、Telegram Bot 逻辑和业务模块。
+- `console/`：Telegram Mini App 管理控制台。
+- `admin/`：Web 管理端前端。
+- `member_sync/`：成员同步辅助脚本，凭据从环境变量读取。
+- `priv/repo/migrations/`：数据库迁移文件。
+- `docs/deployment_guide.md`：部署说明。
 
-_最初时本项目是作为 Policr 机器人的最小化替代品而诞生，当前已成为独立的重量级机器人。旨在为 Telegram 群组管理提供更便捷的体验。_
+## 配置与部署
 
-### 新的变化
+生产密钥、Bot Token、数据库和运行数据不在仓库中。请复制 `.env.example`，根据自己的环境填写配置后再启动服务。
 
-从我们的博客文章了解最近的更新：
+完整部署步骤请参考：[部署说明](docs/deployment_guide.md)
 
-- [2025-07-30](https://blog.hentioe.dev/posts/policr-mini-updates-2025-07-31.html)
-- [2024-04-05](https://blog.gramlabs.org/posts/policr-mini-updates-2024-04-05.html)
-- [2024-01-01](https://blog.gramlabs.org/posts/policr-mini-updates-2024-01-01.html)
+开发环境的 Compose 配置位于：
 
-## 技术介绍
+- `docker-compose.dev.yml`
+- `docker-compose.prod.yml`
+- `docker-compose.yml`
 
-本项目使用 Elixir 语言开发，具备 Erlang 系统一切优点。为了在开发过程中更轻易的从根源解决问题，作者本人从零开发了 TG bot 库（[Telegex](https://github.com/telegex/telegex)），并基于该库构建了本项目。
+## 安全说明
 
-作为 [Telegex](https://github.com/telegex/telegex) 的现实案例，从事实上证明了它可以让机器人足够可靠、稳定的运行。 并且 [Telegex](https://github.com/telegex/telegex) 相较于早已存在的多个同类库，仍然具有更正确、完整的支持，更加优雅的实现等优点。
+请勿把 `.env`、数据库备份、Telegram 会话文件或用户数据提交到 Git。公开部署时必须设置独立的数据库密码、Web 密钥和 Bot Token。
 
-## 关注我们
+## 说明
 
-- [POLICR · 中文社区](https://t.me/policr_community)
-- [POLICR · 更新通知](https://t.me/policr_changelog)
-
-## 未来计划
-
-本项目仍在积极维护，包括完成度和质量优化，它还需要较长的一段时间来完善自身。这期间也会继续探索新的模式和方案，不断演进。
+本项目是在 PolicrMini 基础上的二次开发版本，保留原项目的许可证和相关技术归属。项目中的生产配置、用户数据和凭据不属于开源内容。

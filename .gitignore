@@ -76,5 +76,6 @@ npm-debug.log
 /README-WORKSPACE.md
 /.envrc
 /.vscode/
+design/admin-console-screenshots.webp
 *.session
 *.session-journal
